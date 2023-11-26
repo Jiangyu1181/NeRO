@@ -30,6 +30,7 @@
 # Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
 import filecmp
+
 from read_write_fused_vis import read_fused, write_fused
 
 
@@ -37,7 +38,7 @@ def main():
     import sys
     if len(sys.argv) != 5:
         print("Usage: python test_read_write_fused_vis.py "
-              "path/to/input_fused.ply path/to/input_fused.ply.vis " 
+              "path/to/input_fused.ply path/to/input_fused.ply.vis "
               "path/to/output_fused.ply path/to/output_fused.ply.vis")
         return
 
@@ -59,4 +60,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

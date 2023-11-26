@@ -31,12 +31,12 @@
 
 # This script exports a COLMAP database to the file structure to run Bundler.
 
-import os
 import argparse
-import sqlite3
-import shutil
 import gzip
 import numpy as np
+import os
+import shutil
+import sqlite3
 
 
 def parse_args():
@@ -104,7 +104,7 @@ def main():
         else:
             keypoints = np.fromstring(row[0], dtype=np.float32).reshape(-1, 6)
             cursor.execute("SELECT data FROM descriptors WHERE image_id=?;",
-                        (image_id,))
+                           (image_id,))
             row = next(cursor)
             descriptors = np.fromstring(row[0], dtype=np.uint8).reshape(-1, 128)
 
@@ -114,7 +114,7 @@ def main():
                 fid.write("%f %f %f %f\n" % (keypoints[r, 1], keypoints[r, 0],
                                              keypoints[r, 2], keypoints[r, 3]))
                 for i in range(0, 128, 20):
-                    desc_block = descriptors[r, i:i+20]
+                    desc_block = descriptors[r, i:i + 20]
                     fid.write(" ".join(map(str, desc_block.ravel().tolist())))
                     fid.write("\n")
 

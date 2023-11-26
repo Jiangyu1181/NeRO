@@ -16,17 +16,14 @@
 #   along with python-plyfile.  If not, see
 #       <http://www.gnu.org/licenses/>.
 
-from itertools import islice as _islice
-
 import numpy as _np
+from itertools import islice as _islice
 from sys import byteorder as _byteorder
-
 
 try:
     _range = xrange
 except NameError:
     _range = range
-
 
 # Many-many relation
 _data_type_relation = [
@@ -61,7 +58,6 @@ for (_a, _b) in _data_type_relation:
     if _b not in _types_set:
         _types_list.append(_b)
         _types_set.add(_b)
-
 
 _byte_order_map = {
     'ascii': '=',
@@ -119,7 +115,6 @@ def make2d(array, cols=None, dtype=None):
 
 
 class PlyParseError(Exception):
-
     '''
     Raised when a PLY file cannot be parsed.
 
@@ -151,7 +146,6 @@ class PlyParseError(Exception):
 
 
 class PlyData(object):
-
     '''
     PLY file header and data.
 
@@ -365,7 +359,6 @@ class PlyData(object):
 
 
 class PlyElement(object):
-
     '''
     PLY file element.
 
@@ -667,7 +660,7 @@ class PlyElement(object):
             for prop in self.properties:
                 try:
                     self._data[prop.name][k] = \
-                            prop._read_bin(stream, byte_order)
+                        prop._read_bin(stream, byte_order)
                 except StopIteration:
                     raise PlyParseError("early end-of-file",
                                         self, k, prop)
@@ -716,7 +709,6 @@ class PlyElement(object):
 
 
 class PlyProperty(object):
-
     '''
     PLY property description.  This class is pure metadata; the data
     itself is contained in PlyElement instances.
@@ -820,7 +812,6 @@ class PlyProperty(object):
 
 
 class PlyListProperty(PlyProperty):
-
     '''
     PLY list property description.
 

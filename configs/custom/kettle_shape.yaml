@@ -11,8 +11,8 @@ clip_sample_variance: false # this affects how we sample points on the ray
 
 ######loss######
 # losses used in training
-loss: ['nerf_render','eikonal','std','init_sdf_reg','occ']
-val_metric: ['shape_render'] # this controls how we output images during training
+loss: [ 'nerf_render','eikonal','std','init_sdf_reg','occ' ]
+val_metric: [ 'shape_render' ] # this controls how we output images during training
 key_metric_name: psnr
 eikonal_weight: 0.1
 freeze_inv_s_step: 15000 # we freeze the 1/s in the NeuS for 15k steps for initialization.
@@ -22,8 +22,7 @@ train_dataset_type: dummy
 train_dataset_cfg:
   database_name: custom/kettle/raw_1024
 val_set_list:
-  -
-    name: val
+  - name: val
     type: dummy
     cfg:
       database_name: custom/kettle/raw_1024
@@ -31,7 +30,7 @@ val_set_list:
 ####trainier####
 optimizer_type: adam
 lr_type: warm_up_cos
-lr_cfg: {}
+lr_cfg: { }
 total_step: 300000
 val_interval: 5000
 save_interval: 1000

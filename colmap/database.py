@@ -31,14 +31,13 @@
 
 # This script is based on an original implementation by True Price.
 
-import sys
-import sqlite3
 import numpy as np
-
+import sqlite3
+import sys
 
 IS_PYTHON3 = sys.version_info[0] >= 3
 
-MAX_IMAGE_ID = 2**31 - 1
+MAX_IMAGE_ID = 2 ** 31 - 1
 
 CREATE_CAMERAS_TABLE = """CREATE TABLE IF NOT EXISTS cameras (
     camera_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -144,7 +143,6 @@ class COLMAPDatabase(sqlite3.Connection):
     def connect(database_path):
         return sqlite3.connect(database_path, factory=COLMAPDatabase)
 
-
     def __init__(self, *args, **kwargs):
         super(COLMAPDatabase, self).__init__(*args, **kwargs)
 
@@ -181,8 +179,8 @@ class COLMAPDatabase(sqlite3.Connection):
         return cursor.lastrowid
 
     def add_keypoints(self, image_id, keypoints):
-        assert(len(keypoints.shape) == 2)
-        assert(keypoints.shape[1] in [2, 4, 6])
+        assert (len(keypoints.shape) == 2)
+        assert (keypoints.shape[1] in [2, 4, 6])
 
         keypoints = np.asarray(keypoints, np.float32)
         self.execute(
@@ -196,11 +194,11 @@ class COLMAPDatabase(sqlite3.Connection):
             (image_id,) + descriptors.shape + (array_to_blob(descriptors),))
 
     def add_matches(self, image_id1, image_id2, matches):
-        assert(len(matches.shape) == 2)
-        assert(matches.shape[1] == 2)
+        assert (len(matches.shape) == 2)
+        assert (matches.shape[1] == 2)
 
         if image_id1 > image_id2:
-            matches = matches[:,::-1]
+            matches = matches[:, ::-1]
 
         pair_id = image_ids_to_pair_id(image_id1, image_id2)
         matches = np.asarray(matches, np.uint32)
@@ -212,11 +210,11 @@ class COLMAPDatabase(sqlite3.Connection):
                               F=np.eye(3), E=np.eye(3), H=np.eye(3),
                               qvec=np.array([1.0, 0.0, 0.0, 0.0]),
                               tvec=np.zeros(3), config=2):
-        assert(len(matches.shape) == 2)
-        assert(matches.shape[1] == 2)
+        assert (len(matches.shape) == 2)
+        assert (matches.shape[1] == 2)
 
         if image_id1 > image_id2:
-            matches = matches[:,::-1]
+            matches = matches[:, ::-1]
 
         pair_id = image_ids_to_pair_id(image_id1, image_id2)
         matches = np.asarray(matches, np.uint32)
@@ -228,8 +226,8 @@ class COLMAPDatabase(sqlite3.Connection):
         self.execute(
             "INSERT INTO two_view_geometries VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (pair_id,) + matches.shape + (array_to_blob(matches), config,
-             array_to_blob(F), array_to_blob(E), array_to_blob(H),
-             array_to_blob(qvec), array_to_blob(tvec)))
+                                          array_to_blob(F), array_to_blob(E), array_to_blob(H),
+                                          array_to_blob(qvec), array_to_blob(tvec)))
 
 
 def example_usage():

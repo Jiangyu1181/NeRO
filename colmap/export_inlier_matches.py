@@ -31,10 +31,10 @@
 
 # This script exports inlier matches from a COLMAP database to a text file.
 
-import os
 import argparse
-import sqlite3
 import numpy as np
+import os
+import sqlite3
 
 
 def parse_args():

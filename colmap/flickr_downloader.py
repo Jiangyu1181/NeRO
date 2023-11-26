@@ -29,16 +29,15 @@
 #
 # Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-import os
-import time
+import argparse
 import datetime
+import multiprocessing
+import os
+import socket
+import time
 import urllib
 import urllib2
-import socket
-import argparse
-import multiprocessing
 import xml.etree.ElementTree as ElementTree
-
 
 PER_PAGE = 500
 SORT = "date-posted-desc"

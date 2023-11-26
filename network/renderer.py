@@ -1,19 +1,19 @@
 import cv2
-
-import raytracing
-import open3d
 import numpy as np
+import open3d
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import raytracing
 from dataset.database import parse_database_name, get_database_split, BaseDatabase
 from network.field import SDFNetwork, SingleVarianceNetwork, NeRFNetwork, AppShadingNetwork, get_intersection, \
     extract_geometry, sample_pdf, MCShadingNetwork
 from utils.base_utils import color_map_forward, downsample_gaussian_blur
 from utils.raw_utils import linear_to_srgb
 
-def build_imgs_info(database:BaseDatabase, img_ids):
+
+def build_imgs_info(database: BaseDatabase, img_ids):
     images = [database.get_image(img_id) for img_id in img_ids]
     poses = [database.get_pose(img_id) for img_id in img_ids]
     Ks = [database.get_K(img_id) for img_id in img_ids]
@@ -24,40 +24,45 @@ def build_imgs_info(database:BaseDatabase, img_ids):
     poses = np.stack(poses, 0).astype(np.float32)
     return {'imgs': images, 'Ks': Ks, 'poses': poses}
 
+
 def imgs_info_to_torch(imgs_info, device='cpu'):
     for k, v in imgs_info.items():
         v = torch.from_numpy(v)
-        if k.startswith('imgs'): v = v.permute(0,3,1,2)
+        if k.startswith('imgs'): v = v.permute(0, 3, 1, 2)
         imgs_info[k] = v.to(device)
     return imgs_info
 
+
 def imgs_info_slice(imgs_info, idxs):
-    new_imgs_info={}
+    new_imgs_info = {}
     for k, v in imgs_info.items():
-        new_imgs_info[k]=v[idxs]
+        new_imgs_info[k] = v[idxs]
     return new_imgs_info
+
 
 def imgs_info_to_cuda(imgs_info):
     for k, v in imgs_info.items():
-        imgs_info[k]=v.cuda()
+        imgs_info[k] = v.cuda()
     return imgs_info
+
 
 def imgs_info_downsample(imgs_info, ratio):
     b, _, h, w = imgs_info['imgs'].shape
-    dh, dw = int(ratio*h), int(ratio*w)
-    imgs_info_copy = {k:v for k,v in imgs_info.items()}
+    dh, dw = int(ratio * h), int(ratio * w)
+    imgs_info_copy = {k: v for k, v in imgs_info.items()}
     imgs_info_copy['imgs'], imgs_info_copy['Ks'] = [], []
     for bi in range(b):
-        img = imgs_info['imgs'][bi].cpu().numpy().transpose([1,2,0])
+        img = imgs_info['imgs'][bi].cpu().numpy().transpose([1, 2, 0])
         img = downsample_gaussian_blur(img, ratio)
-        img = cv2.resize(img, (dw,dh), interpolation=cv2.INTER_LINEAR)
-        imgs_info_copy['imgs'].append(torch.from_numpy(img).permute(2,0,1))
+        img = cv2.resize(img, (dw, dh), interpolation=cv2.INTER_LINEAR)
+        imgs_info_copy['imgs'].append(torch.from_numpy(img).permute(2, 0, 1))
         K = torch.from_numpy(np.diag([dw / w, dh / h, 1]).astype(np.float32)) @ imgs_info['Ks'][bi]
         imgs_info_copy['Ks'].append(K)
 
     imgs_info_copy['imgs'] = torch.stack(imgs_info_copy['imgs'], 0)
     imgs_info_copy['Ks'] = torch.stack(imgs_info_copy['Ks'], 0)
     return imgs_info_copy
+
 
 class NeROShapeRenderer(nn.Module):
     default_cfg = {
@@ -123,7 +128,8 @@ class NeROShapeRenderer(nn.Module):
         self.deviation_network = SingleVarianceNetwork(init_val=self.cfg['inv_s_init'], activation=self.cfg['std_act'])
 
         # background nerf is a nerf++ model (this is outside the unit bounding sphere, so we call it outer nerf)
-        self.outer_nerf = NeRFNetwork(D=8, d_in=4, d_in_view=3, W=256, multires=10, multires_view=4, output_ch=4, skips=[4], use_viewdirs=True)
+        self.outer_nerf = NeRFNetwork(D=8, d_in=4, d_in_view=3, W=256, multires=10, multires_view=4, output_ch=4,
+                                      skips=[4], use_viewdirs=True)
         nn.init.constant_(self.outer_nerf.rgb_linear.bias, np.log(0.5))
 
         self.color_network = AppShadingNetwork(self.cfg['shader_config'])
@@ -169,7 +175,8 @@ class NeROShapeRenderer(nn.Module):
         coords = coords.to(device)
         coords = coords.float()[None, :, :, :].repeat(imn, 1, 1, 1)  # imn,h,w,2
         coords = coords.reshape(imn, h * w, 2)
-        coords = torch.cat([coords + 0.5, torch.ones(imn, h * w, 1, dtype=torch.float32, device=device)], 2)  # imn,h*w,3
+        coords = torch.cat([coords + 0.5, torch.ones(imn, h * w, 1, dtype=torch.float32, device=device)],
+                           2)  # imn,h*w,3
 
         # imn,h*w,3 @ imn,3,3 => imn,h*w,3
         dirs = coords @ torch.inverse(imgs_info['Ks']).permute(0, 2, 1)
@@ -270,7 +277,7 @@ class NeROShapeRenderer(nn.Module):
         human_poses = self.get_human_coordinate_poses(poses)
         return rays_o, rays_d, near, far, human_poses[idxs]  # rn, 3, 4
 
-    def test_step(self, index, step,):
+    def test_step(self, index, step, ):
         target_imgs_info, target_img_ids = self.test_imgs_info, self.test_ids
         imgs_info = imgs_info_slice(target_imgs_info, torch.from_numpy(np.asarray([index], np.int64)))
         gt_depth, gt_mask = self.database.get_depth(target_img_ids[index])  # used in evaluation
@@ -279,7 +286,7 @@ class NeROShapeRenderer(nn.Module):
             h, w = gt_depth.shape
             dh, dw = int(self.cfg['downsample_ratio'] * h), int(self.cfg['downsample_ratio'] * w)
             gt_depth, gt_mask = cv2.resize(gt_depth, (dw, dh), interpolation=cv2.INTER_NEAREST), \
-                cv2.resize(gt_mask.astype(np.uint8), (dw, dh), interpolation=cv2.INTER_NEAREST)
+                                cv2.resize(gt_mask.astype(np.uint8), (dw, dh), interpolation=cv2.INTER_NEAREST)
         gt_depth, gt_mask = torch.from_numpy(gt_depth), torch.from_numpy(gt_mask.astype(np.int32))
         ray_batch, input_poses, rn, h, w = self._construct_ray_batch(imgs_info)
 
@@ -298,7 +305,7 @@ class NeROShapeRenderer(nn.Module):
 
         outputs = {k: [] for k in outputs_keys}
         for ri in range(0, rn, trn):
-            cur_ray_batch= {k:v[ri:ri+trn] for k, v in ray_batch.items()}
+            cur_ray_batch = {k: v[ri:ri + trn] for k, v in ray_batch.items()}
             rays_o, rays_d, near, far, human_poses = self._process_ray_batch(cur_ray_batch, input_poses)
             cur_outputs = self.render(rays_o, rays_d, near, far, human_poses, 0, 0, is_train=False, step=step)
             for k in outputs_keys: outputs[k].append(cur_outputs[k].detach())
@@ -324,7 +331,8 @@ class NeROShapeRenderer(nn.Module):
         train_poses = self.train_poses.cuda()
         rays_o, rays_d, near, far, human_poses = self._process_ray_batch(train_ray_batch, train_poses)
 
-        outputs = self.render(rays_o, rays_d, near, far, human_poses, -1, self.get_anneal_val(step), is_train=True, step=step)
+        outputs = self.render(rays_o, rays_d, near, far, human_poses, -1, self.get_anneal_val(step), is_train=True,
+                              step=step)
         outputs['loss_rgb'] = self.compute_rgb_loss(outputs['ray_rgb'], train_ray_batch['rgbs'])  # ray_loss
         return outputs
 
@@ -441,7 +449,8 @@ class NeROShapeRenderer(nn.Module):
         z_vals = torch.cat([z_vals, z_vals_outside], -1)
         return z_vals
 
-    def render(self, rays_o, rays_d, near, far, human_poses, perturb_overwrite=-1, cos_anneal_ratio=0.0, is_train=True, step=None):
+    def render(self, rays_o, rays_d, near, far, human_poses, perturb_overwrite=-1, cos_anneal_ratio=0.0, is_train=True,
+               step=None):
         """
         :param rays_o: rn,3
         :param rays_d: rn,3
@@ -458,7 +467,8 @@ class NeROShapeRenderer(nn.Module):
         if perturb_overwrite >= 0:
             perturb = perturb_overwrite
         z_vals = self.sample_ray(rays_o, rays_d, near, far, perturb)
-        ret = self.render_core(rays_o, rays_d, z_vals, human_poses, cos_anneal_ratio=cos_anneal_ratio, step=step, is_train=is_train)
+        ret = self.render_core(rays_o, rays_d, z_vals, human_poses, cos_anneal_ratio=cos_anneal_ratio, step=step,
+                               is_train=is_train)
         return ret
 
     def compute_validation_info(self, z_vals, rays_o, rays_d, weights, human_poses, step):
@@ -472,8 +482,10 @@ class NeROShapeRenderer(nn.Module):
         }
 
         feature_vector = self.sdf_network(points)[..., 1:]  # rn,f
-        _, occ_info, inter_results = self.color_network(points, gradients, -F.normalize(rays_d, dim=-1), feature_vector, human_poses, inter_results=True, step=step)
-        _, occ_prob, _ = get_intersection(self.sdf_inter_fun, self.deviation_network, points, occ_info['reflective'], sn0=128, sn1=9)  # pn,sn-1
+        _, occ_info, inter_results = self.color_network(points, gradients, -F.normalize(rays_d, dim=-1), feature_vector,
+                                                        human_poses, inter_results=True, step=step)
+        _, occ_prob, _ = get_intersection(self.sdf_inter_fun, self.deviation_network, points, occ_info['reflective'],
+                                          sn0=128, sn1=9)  # pn,sn-1
         occ_prob_gt = torch.sum(occ_prob, dim=-1, keepdim=True)
         outputs['occ_prob_gt'] = occ_prob_gt
         for k, v in inter_results.items(): inter_results[k] = v * inner_mask
@@ -540,7 +552,9 @@ class NeROShapeRenderer(nn.Module):
             mask = mask_new
 
         if torch.sum(mask) > 0:
-            inter_dist, inter_prob, inter_sdf = get_intersection(self.sdf_inter_fun, self.deviation_network, points[mask], reflective[mask], sn0=64, sn1=16)  # pn,sn-1
+            inter_dist, inter_prob, inter_sdf = get_intersection(self.sdf_inter_fun, self.deviation_network,
+                                                                 points[mask], reflective[mask], sn0=64,
+                                                                 sn1=16)  # pn,sn-1
             occ_prob_gt = torch.sum(inter_prob, -1, keepdim=True)
             return F.l1_loss(occ_prob[mask], occ_prob_gt)
         else:
@@ -564,17 +578,26 @@ class NeROShapeRenderer(nn.Module):
         alpha, sampled_color = torch.zeros(batch_size, n_samples), torch.zeros(batch_size, n_samples, 3)
 
         if torch.sum(outer_mask) > 0:
-            alpha[outer_mask], sampled_color[outer_mask] = self.compute_density_alpha(points[outer_mask], dists[outer_mask], -dirs[outer_mask], self.outer_nerf)
+            alpha[outer_mask], sampled_color[outer_mask] = self.compute_density_alpha(points[outer_mask],
+                                                                                      dists[outer_mask],
+                                                                                      -dirs[outer_mask],
+                                                                                      self.outer_nerf)
 
         if torch.sum(inner_mask) > 0:
-            alpha[inner_mask], gradients, feature_vector, inv_s, sdf = self.compute_sdf_alpha(points[inner_mask], dists[inner_mask], dirs[inner_mask], cos_anneal_ratio, step)
-            sampled_color[inner_mask], occ_info = self.color_network(points[inner_mask], gradients, -dirs[inner_mask], feature_vector, human_poses_pt[inner_mask], step=step)
+            alpha[inner_mask], gradients, feature_vector, inv_s, sdf = self.compute_sdf_alpha(points[inner_mask],
+                                                                                              dists[inner_mask],
+                                                                                              dirs[inner_mask],
+                                                                                              cos_anneal_ratio, step)
+            sampled_color[inner_mask], occ_info = self.color_network(points[inner_mask], gradients, -dirs[inner_mask],
+                                                                     feature_vector, human_poses_pt[inner_mask],
+                                                                     step=step)
             # Eikonal loss
             gradient_error = (torch.linalg.norm(gradients, ord=2, dim=-1) - 1.0) ** 2
         else:
             gradient_error = torch.zeros(1)
 
-        weights = alpha * torch.cumprod(torch.cat([torch.ones([batch_size, 1]), 1. - alpha + 1e-7], -1), -1)[..., :-1]  # rn,sn
+        weights = alpha * torch.cumprod(torch.cat([torch.ones([batch_size, 1]), 1. - alpha + 1e-7], -1), -1)[...,
+                          :-1]  # rn,sn
         color = (sampled_color * weights[..., None]).sum(dim=1)
 
         outputs = {
@@ -595,7 +618,8 @@ class NeROShapeRenderer(nn.Module):
         if self.cfg['apply_occ_loss']:
             # occlusion loss
             if torch.sum(inner_mask) > 0:
-                outputs['loss_occ'] = self.compute_occ_loss(occ_info, points[inner_mask], sdf, gradients, dirs[inner_mask], step)
+                outputs['loss_occ'] = self.compute_occ_loss(occ_info, points[inner_mask], sdf, gradients,
+                                                            dirs[inner_mask], step)
             else:
                 outputs['loss_occ'] = torch.zeros(1)
 
@@ -645,8 +669,9 @@ class NeROShapeRenderer(nn.Module):
                 'roughness': np.concatenate(roughness, 0),
                 'albedo': np.concatenate(albedo, 0)}
 
+
 class NeROMaterialRenderer(nn.Module):
-    default_cfg={
+    default_cfg = {
         'train_ray_num': 512,
         'test_ray_num': 1024,
 
@@ -662,6 +687,7 @@ class NeROMaterialRenderer(nn.Module):
         'reg_diffuse_light_lambda': 0.1,
         'fixed_camera': False,
     }
+
     def __init__(self, cfg, is_train=True):
         self.cfg = {**self.default_cfg, **cfg}
         super().__init__()
@@ -695,13 +721,14 @@ class NeROMaterialRenderer(nn.Module):
 
     def _init_shader(self):
         self.cfg['shader_cfg']['is_real'] = self.cfg['database_name'].startswith('real')
-        self.shader_network = MCShadingNetwork(self.cfg['shader_cfg'], lambda o,d: self.trace(o,d))
+        self.shader_network = MCShadingNetwork(self.cfg['shader_cfg'], lambda o, d: self.trace(o, d))
 
-    def trace_in_batch(self, rays_o, rays_d, batch_size=1024**2, cpu=False):
+    def trace_in_batch(self, rays_o, rays_d, batch_size=1024 ** 2, cpu=False):
         inters, normals, depth, hit_mask = [], [], [], []
         rn = rays_o.shape[0]
         for ri in range(0, rn, batch_size):
-            inters_cur, normals_cur, depth_cur, hit_mask_cur = self.trace(rays_o[ri:ri+batch_size], rays_d[ri:ri+batch_size])
+            inters_cur, normals_cur, depth_cur, hit_mask_cur = self.trace(rays_o[ri:ri + batch_size],
+                                                                          rays_d[ri:ri + batch_size])
             if cpu:
                 inters_cur = inters_cur.cpu()
                 normals_cur = normals_cur.cpu()
@@ -720,21 +747,22 @@ class NeROMaterialRenderer(nn.Module):
         normals = F.normalize(normals, dim=-1)
         if not self.warned_normal:
             print('warn!!! the normals are flipped in NeuS by default. You may flip the normal according to your mesh!')
-            self.warned_normal=True
+            self.warned_normal = True
         miss_mask = depth >= 10
         hit_mask = ~miss_mask
         return inters, normals, depth, hit_mask
 
     def _warn_ray_tracing(self, centers):
-        centers = centers.reshape([-1,3])
-        distance = torch.norm(centers,dim=-1) + 1.0
+        centers = centers.reshape([-1, 3])
+        distance = torch.norm(centers, dim=-1) + 1.0
         max_dist = torch.max(distance).cpu().numpy()
-        if max_dist>10.0:
-            print(f'warning!!! the max distance from the camera is {max_dist:.4f}, which is beyond 10.0 for the ray tracer')
+        if max_dist > 10.0:
+            print(
+                f'warning!!! the max distance from the camera is {max_dist:.4f}, which is beyond 10.0 for the ray tracer')
 
     def get_human_coordinate_poses(self, poses):
         pn = poses.shape[0]
-        cam_cen = (-poses[:, :, :3].permute(0,2,1) @ poses[:, :, 3:])[..., 0]  # pn,3
+        cam_cen = (-poses[:, :, :3].permute(0, 2, 1) @ poses[:, :, 3:])[..., 0]  # pn,3
         if self.cfg['fixed_camera']:
             pass
         else:
@@ -752,11 +780,11 @@ class NeROMaterialRenderer(nn.Module):
 
     def _construct_ray_batch(self, imgs_info, device='cpu', is_train=True):
         imn, _, h, w = imgs_info['imgs'].shape
-        coords = torch.stack(torch.meshgrid(torch.arange(h),torch.arange(w)),-1)[:,:,(1,0)] # h,w,2
+        coords = torch.stack(torch.meshgrid(torch.arange(h), torch.arange(w)), -1)[:, :, (1, 0)]  # h,w,2
         coords = coords.to('cpu')
-        coords = coords.float()[None,:,:,:].repeat(imn,1,1,1) # imn,h,w,2
-        coords = coords.reshape(imn,h*w,2)
-        coords = torch.cat([coords+0.5, torch.ones(imn, h*w, 1, dtype=torch.float32, device='cpu')], 2) # imn,h*w,3
+        coords = coords.float()[None, :, :, :].repeat(imn, 1, 1, 1)  # imn,h,w,2
+        coords = coords.reshape(imn, h * w, 2)
+        coords = torch.cat([coords + 0.5, torch.ones(imn, h * w, 1, dtype=torch.float32, device='cpu')], 2)  # imn,h*w,3
 
         # imn,h*w,3 @ imn,3,3 => imn,h*w,3
         rays_d = coords @ torch.inverse(imgs_info['Ks']).permute(0, 2, 1)
@@ -764,18 +792,20 @@ class NeROMaterialRenderer(nn.Module):
         R, t = poses[:, :, :3], poses[:, :, 3:]
         rays_d = rays_d @ R
         rays_d = F.normalize(rays_d, dim=-1)
-        rays_o = -R.permute(0,2,1) @ t # imn,3,3 @ imn,3,1
+        rays_o = -R.permute(0, 2, 1) @ t  # imn,3,3 @ imn,3,1
         self._warn_ray_tracing(rays_o)
-        rays_o = rays_o.permute(0, 2, 1).repeat(1, h*w, 1) # imn,h*w,3
-        inters, normals, depth, hit_mask = self.trace_in_batch(rays_o.reshape(-1,3), rays_d.reshape(-1,3), cpu=True) # imn
-        inters, normals, depth, hit_mask = inters.reshape(imn,h*w,3), normals.reshape(imn,h*w,3), depth.reshape(imn,h*w,1), hit_mask.reshape(imn, h*w)
+        rays_o = rays_o.permute(0, 2, 1).repeat(1, h * w, 1)  # imn,h*w,3
+        inters, normals, depth, hit_mask = self.trace_in_batch(rays_o.reshape(-1, 3), rays_d.reshape(-1, 3),
+                                                               cpu=True)  # imn
+        inters, normals, depth, hit_mask = inters.reshape(imn, h * w, 3), normals.reshape(imn, h * w, 3), depth.reshape(
+            imn, h * w, 1), hit_mask.reshape(imn, h * w)
 
-        human_poses = self.get_human_coordinate_poses(poses) # imn,3,4
-        human_poses = human_poses.unsqueeze(1).repeat(1,h*w,1,1) # imn,h*w,3,4
-        rgb = imgs_info['imgs'].reshape(imn,3,h*w).permute(0,2,1) # imn,h*w,3
+        human_poses = self.get_human_coordinate_poses(poses)  # imn,3,4
+        human_poses = human_poses.unsqueeze(1).repeat(1, h * w, 1, 1)  # imn,h*w,3,4
+        rgb = imgs_info['imgs'].reshape(imn, 3, h * w).permute(0, 2, 1)  # imn,h*w,3
 
         if is_train:
-            ray_batch={
+            ray_batch = {
                 'rays_o': rays_o[hit_mask].to(device),
                 'rays_d': rays_d[hit_mask].to(device),
                 'inters': inters[hit_mask].to(device),
@@ -785,8 +815,8 @@ class NeROMaterialRenderer(nn.Module):
                 'rgb': rgb[hit_mask].to(device),
             }
         else:
-            assert imn==1
-            ray_batch={
+            assert imn == 1
+            ray_batch = {
                 'rays_o': rays_o[0].to(device),
                 'rays_d': rays_d[0].to(device),
                 'inters': inters[0].to(device),
@@ -800,7 +830,7 @@ class NeROMaterialRenderer(nn.Module):
 
     def _shuffle_train_batch(self):
         self.train_batch_i = 0
-        shuffle_idxs = torch.randperm(self.tbn, device='cpu') # shuffle
+        shuffle_idxs = torch.randperm(self.tbn, device='cpu')  # shuffle
         for k, v in self.train_batch.items():
             self.train_batch[k] = v[shuffle_idxs]
 
@@ -820,48 +850,52 @@ class NeROMaterialRenderer(nn.Module):
         return rgb_loss
 
     def compute_diffuse_light_regularization(self, diffuse_lights):
-        diffuse_white_reg = torch.sum(torch.abs(diffuse_lights - torch.mean(diffuse_lights, dim=-1, keepdim=True)), dim=-1)
+        diffuse_white_reg = torch.sum(torch.abs(diffuse_lights - torch.mean(diffuse_lights, dim=-1, keepdim=True)),
+                                      dim=-1)
         return diffuse_white_reg * self.cfg['reg_diffuse_light_lambda']
 
     def train_step(self, step):
         rn = self.cfg['train_ray_num']
         pts = self.train_batch['inters'][self.train_batch_i:self.train_batch_i + rn].cuda()
-        view_dirs = -self.train_batch['rays_d'][self.train_batch_i:self.train_batch_i + rn].cuda() # view directions are opposite to ray directions
+        view_dirs = -self.train_batch['rays_d'][
+                     self.train_batch_i:self.train_batch_i + rn].cuda()  # view directions are opposite to ray directions
         normals = self.train_batch['normals'][self.train_batch_i:self.train_batch_i + rn].cuda()
         rgb_gt = self.train_batch['rgb'][self.train_batch_i:self.train_batch_i + rn].cuda()
         human_poses = self.train_batch['human_poses'][self.train_batch_i:self.train_batch_i + rn].cuda()
 
         shade_outputs = self.shade(pts, view_dirs, normals, human_poses, True, step)
         shade_outputs['rgb_gt'] = rgb_gt
-        shade_outputs['loss_rgb'] = self.compute_rgb_loss(shade_outputs['rgb_pr'],shade_outputs['rgb_gt'])
+        shade_outputs['loss_rgb'] = self.compute_rgb_loss(shade_outputs['rgb_pr'], shade_outputs['rgb_gt'])
         if self.cfg['reg_mat']:
             shade_outputs['loss_mat_reg'] = self.shader_network.material_regularization(
                 pts, normals, shade_outputs['metallic'], shade_outputs['roughness'], shade_outputs['albedo'], step)
         if self.cfg['reg_diffuse_light']:
-            shade_outputs['loss_diffuse_light'] = self.compute_diffuse_light_regularization(shade_outputs['diffuse_light'])
+            shade_outputs['loss_diffuse_light'] = self.compute_diffuse_light_regularization(
+                shade_outputs['diffuse_light'])
 
         self.train_batch_i += rn
         if self.train_batch_i + rn >= self.tbn: self._shuffle_train_batch()
         return shade_outputs
 
     def test_step(self, index):
-        test_imgs_info = imgs_info_slice(self.test_imgs_info, torch.from_numpy(np.asarray([index],np.int64)))
+        test_imgs_info = imgs_info_slice(self.test_imgs_info, torch.from_numpy(np.asarray([index], np.int64)))
         _, _, h, w = test_imgs_info['imgs'].shape
         ray_batch = self._construct_ray_batch(test_imgs_info, 'cuda', False)
         trn = self.cfg['test_ray_num']
 
-        output_keys = {'rgb_gt':3, 'rgb_pr':3, 'specular_light':3, 'specular_color':3, 'diffuse_light':3, 'diffuse_color':3, 'albedo':3, 'metallic':1, 'roughness':1}
-        outputs = {k:[] for k in output_keys.keys()}
+        output_keys = {'rgb_gt': 3, 'rgb_pr': 3, 'specular_light': 3, 'specular_color': 3, 'diffuse_light': 3,
+                       'diffuse_color': 3, 'albedo': 3, 'metallic': 1, 'roughness': 1}
+        outputs = {k: [] for k in output_keys.keys()}
         rn = ray_batch['rays_o'].shape[0]
         for ri in range(0, rn, trn):
-            hit_mask = ray_batch['hit_mask'][ri:ri+trn]
+            hit_mask = ray_batch['hit_mask'][ri:ri + trn]
             outputs_cur = {k: torch.zeros(hit_mask.shape[0], d) for k, d in output_keys.items()}
-            if torch.sum(hit_mask)>0:
-                pts = ray_batch['inters'][ri:ri+trn][hit_mask]
-                view_dirs = -ray_batch['rays_d'][ri:ri+trn][hit_mask]
-                normals = ray_batch['normals'][ri:ri+trn][hit_mask]
-                rgb_gt = ray_batch['rgb'][ri:ri+trn][hit_mask]
-                human_poses = ray_batch['human_poses'][ri:ri+trn][hit_mask]
+            if torch.sum(hit_mask) > 0:
+                pts = ray_batch['inters'][ri:ri + trn][hit_mask]
+                view_dirs = -ray_batch['rays_d'][ri:ri + trn][hit_mask]
+                normals = ray_batch['normals'][ri:ri + trn][hit_mask]
+                rgb_gt = ray_batch['rgb'][ri:ri + trn][hit_mask]
+                human_poses = ray_batch['human_poses'][ri:ri + trn][hit_mask]
 
                 shade_outputs = self.shade(pts, view_dirs, normals, human_poses, False)
 
@@ -873,7 +907,8 @@ class NeROMaterialRenderer(nn.Module):
                 outputs_cur['diffuse_light'][hit_mask] = shade_outputs['diffuse_light']
                 outputs_cur['albedo'][hit_mask] = shade_outputs['albedo']
                 outputs_cur['metallic'][hit_mask] = shade_outputs['metallic']
-                outputs_cur['roughness'][hit_mask] = torch.sqrt(shade_outputs['roughness']) # note: we assume predictions are roughness squared
+                outputs_cur['roughness'][hit_mask] = torch.sqrt(
+                    shade_outputs['roughness'])  # note: we assume predictions are roughness squared
 
             for k in output_keys.keys():
                 outputs[k].append(outputs_cur[k])
@@ -898,11 +933,11 @@ class NeROMaterialRenderer(nn.Module):
         return outputs
 
     def predict_materials(self, batch_size=8192):
-        verts = torch.from_numpy(np.asarray(self.mesh.vertices,np.float32)).cuda().float()
+        verts = torch.from_numpy(np.asarray(self.mesh.vertices, np.float32)).cuda().float()
         metallic, roughness, albedo = [], [], []
         for vi in range(0, verts.shape[0], batch_size):
-            m, r, a = self.shader_network.predict_materials(verts[vi:vi+batch_size])
-            r = torch.sqrt(torch.clamp(r, min=1e-7)) # note: we assume predictions are squared roughness!!!
+            m, r, a = self.shader_network.predict_materials(verts[vi:vi + batch_size])
+            r = torch.sqrt(torch.clamp(r, min=1e-7))  # note: we assume predictions are squared roughness!!!
             metallic.append(m.cpu().numpy())
             roughness.append(r.cpu().numpy())
             albedo.append(a.cpu().numpy())
@@ -911,7 +946,8 @@ class NeROMaterialRenderer(nn.Module):
                 'roughness': np.concatenate(roughness, 0),
                 'albedo': np.concatenate(albedo, 0)}
 
-name2renderer={
+
+name2renderer = {
     'shape': NeROShapeRenderer,
     'material': NeROMaterialRenderer,
 }

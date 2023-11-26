@@ -29,11 +29,10 @@
 #
 # Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-import re
 import argparse
+import re
 import requests
 from lxml.html import soupparser
-
 
 MAX_REQUEST_TRIALS = 10
 
@@ -104,7 +103,7 @@ def main():
                     continue
 
                 url = "http://www.digicamdb.com/specs/{0}_{1}" \
-                                            .format(make, model)
+                    .format(make, model)
                 specs_response = request_trial(requests.get, url)
 
                 specs_tree = soupparser.fromstring(specs_response.text)

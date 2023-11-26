@@ -30,6 +30,7 @@
 # Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
 import numpy as np
+
 from read_write_dense import read_array, write_array
 
 

@@ -1,15 +1,14 @@
 import argparse
-from pathlib import Path
-
 import numpy as np
 import open3d
+from pathlib import Path
 
 from eval_synthetic_shape import nearest_dist
 
-if __name__=="__main__":
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--pr',type=str,)
-    parser.add_argument('--gt',type=str,)
+    parser.add_argument('--pr', type=str, )
+    parser.add_argument('--gt', type=str, )
     args = parser.parse_args()
 
     mesh_pr = open3d.io.read_triangle_mesh(f'{args.pr}')
@@ -25,5 +24,5 @@ if __name__=="__main__":
     chamfer = (np.mean(dist_gt) + np.mean(dist_pr)) / 2
     results = f'{stem} {chamfer:.5f}'
     print(results)
-    with open('data/geometry.log','a') as f:
-        f.write(results+'\n')
+    with open('data/geometry.log', 'a') as f:
+        f.write(results + '\n')

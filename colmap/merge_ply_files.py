@@ -31,10 +31,11 @@
 
 # This script merges multiple homogeneous PLY files into a single PLY file.
 
-import os
-import glob
 import argparse
+import glob
 import numpy as np
+import os
+
 import plyfile
 
 

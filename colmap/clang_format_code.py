@@ -29,9 +29,9 @@
 #
 # Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
+import argparse
 import os
 import string
-import argparse
 import subprocess
 
 

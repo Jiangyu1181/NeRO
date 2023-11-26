@@ -29,20 +29,19 @@
 #
 # Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-import os
-import sys
-import glob
-import shutil
-import fileinput
-import platform
 import argparse
-import zipfile
+import fileinput
+import glob
 import hashlib
-import ssl
-import requests
-import subprocess
 import multiprocessing
-
+import os
+import platform
+import requests
+import shutil
+import ssl
+import subprocess
+import sys
+import zipfile
 
 PLATFORM_IS_WINDOWS = platform.system() == "Windows"
 PLATFORM_IS_LINUX = platform.system() == "Linux"
@@ -64,7 +63,7 @@ def parse_args():
     parser.add_argument("--build_path", required=True)
     parser.add_argument("--colmap_path", required=True,
                         help="The path to the top COLMAP source folder, which "
-                             "contains src/, scripts/, CMakeLists.txt, etc." )
+                             "contains src/, scripts/, CMakeLists.txt, etc.")
     parser.add_argument("--qt_path", default="",
                         required=PLATFORM_IS_WINDOWS or PLATFORM_IS_MAC,
                         help="The path to the folder containing Qt, "
@@ -179,7 +178,7 @@ def check_md5_hash(path, md5_hash):
     computed_md5_hash = computed_md5_hash.hexdigest()
     if md5_hash != computed_md5_hash:
         print("MD5 mismatch for {}: {} == {}".format(
-              path, md5_hash, computed_md5_hash))
+            path, md5_hash, computed_md5_hash))
         sys.exit(1)
 
 
@@ -273,7 +272,7 @@ def build_freeimage(args):
         elif PLATFORM_IS_LINUX:
             with fileinput.FileInput(
                     os.path.join(path, "Source/LibWebP/src/dsp/"
-                                 "upsampling_mips_dsp_r2.c"),
+                                       "upsampling_mips_dsp_r2.c"),
                     inplace=True, backup=".bak") as fid:
                 for i, line in enumerate(fid):
                     if i >= 36 and i <= 44:
@@ -282,7 +281,7 @@ def build_freeimage(args):
                     print(line, end="")
             with fileinput.FileInput(
                     os.path.join(path, "Source/LibWebP/src/dsp/"
-                                 "yuv_mips_dsp_r2.c"),
+                                       "yuv_mips_dsp_r2.c"),
                     inplace=True, backup=".bak") as fid:
                 for i, line in enumerate(fid):
                     if i >= 56 and i <= 58:
@@ -516,7 +515,7 @@ def build_post_process(args):
             copy_file_if_not_exists(
                 cgal_lib_path[0],
                 os.path.join(args.install_path, "lib",
-                    os.path.basename(cgal_lib_path[0])))
+                             os.path.basename(cgal_lib_path[0])))
 
 
 def main():
@@ -545,11 +544,11 @@ def main():
     print("Successfully installed COLMAP in: {}".format(args.install_path))
     if PLATFORM_IS_WINDOWS:
         print("  To run COLMAP, navigate to {} and run COLMAP.bat".format(
-                    args.install_path))
+            args.install_path))
     else:
         print("  To run COLMAP, execute LD_LIBRARY_PATH={} {}".format(
-                    os.path.join(args.install_path, "lib"),
-                    os.path.join(args.install_path, "colmap")))
+            os.path.join(args.install_path, "lib"),
+            os.path.join(args.install_path, "colmap")))
 
 
 if __name__ == "__main__":

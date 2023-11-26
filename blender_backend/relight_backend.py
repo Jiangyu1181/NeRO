@@ -1,9 +1,9 @@
 import argparse
+import numpy as np
 import os
 import sys
-from pathlib import Path
-import numpy as np
 from collections import defaultdict
+from pathlib import Path
 
 print(os.path.abspath('.'))
 sys.path.append(os.path.abspath('.'))
@@ -17,7 +17,7 @@ def render():
     args.env_fn = os.path.abspath(args.env_fn)
 
     Path(args.output).mkdir(exist_ok=True, parents=True)
-    setup(args.height, args.width, tile_size=256**2, samples=args.samples)
+    setup(args.height, args.width, tile_size=256 ** 2, samples=args.samples)
     bpy.context.scene.render.film_transparent = True
 
     bpy.ops.import_mesh.ply(filepath=args.mesh)
@@ -40,12 +40,12 @@ def render():
     for v_ix, l_ixs in vertex_map.items():
         for l_ix in l_ixs:
             rgb_vert_color.data[l_ix].color.data.color[:3] = albedo[v_ix]
-            mat_vert_color.data[l_ix].color.data.color[0] = metallic[v_ix,0]
-            mat_vert_color.data[l_ix].color.data.color[1] = roughness[v_ix,0]
+            mat_vert_color.data[l_ix].color.data.color[0] = metallic[v_ix, 0]
+            mat_vert_color.data[l_ix].color.data.color[1] = roughness[v_ix, 0]
 
     if args.trans:
         # trans = np.asarray([[1,0,0],[0,0,-1],[0,1,0]],np.float32)
-        obj.rotation_euler[0]=np.pi/2
+        obj.rotation_euler[0] = np.pi / 2
 
     # create a material
     material = bpy.data.materials.new(name='mat')
@@ -84,7 +84,8 @@ def render():
         set_camera_by_pose(camera, cam_poses[k])
         bpy.ops.render.render(write_still=True)
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Renders given obj file by rotation a camera around it.')
     parser.add_argument('--output', type=str, default='data/relight')
     parser.add_argument('--env_fn', type=str, default='data/hdr/')

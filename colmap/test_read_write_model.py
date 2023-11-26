@@ -30,8 +30,9 @@
 # Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
 import numpy as np
-from read_write_model import read_model, write_model
 from tempfile import mkdtemp
+
+from read_write_model import read_model, write_model
 
 
 def compare_cameras(cameras1, cameras2):

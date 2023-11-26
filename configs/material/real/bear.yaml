@@ -17,8 +17,8 @@ shader_cfg:
   human_lights: true
 
 ######loss######
-loss: ['nerf_render','mat_reg']
-val_metric: ['mat_render']
+loss: [ 'nerf_render','mat_reg' ]
+val_metric: [ 'mat_render' ]
 key_metric_name: psnr
 
 ####dataset#####
@@ -26,8 +26,7 @@ train_dataset_type: dummy
 train_dataset_cfg:
   database_name: real/bear/raw_1024
 val_set_list:
-  -
-    name: val
+  - name: val
     type: dummy
     cfg:
       database_name: real/bear/raw_1024

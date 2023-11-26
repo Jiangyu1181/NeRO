@@ -29,10 +29,10 @@
 #
 # Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
-import os
-import glob
-import shutil
 import argparse
+import glob
+import os
+import shutil
 
 
 def parse_args():
